@@ -1,6 +1,9 @@
 name: Owned Mergify OIDC scope binding probe
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - oidc-scope-pr-canary.txt
 permissions:
   contents: read
   id-token: write
@@ -46,7 +49,7 @@ jobs:
                   except: detail = raw[:100]
                   print('SCOPE_WRITE', label, e.code, detail)
           for label, path in [
-              ('own_legacy_pr', '/v1/repos/yas413/bb-mergify-20261124-a/pulls/1/scopes'),
+              ('own_legacy_pr', '/v1/repos/yas413/bb-mergify-20261124-a/pulls/' + (os.environ['GITHUB_REF'].split('/')[2] if os.environ['GITHUB_REF'].startswith('refs/pull/') else '1') + '/scopes'),
               ('installed_sibling_legacy_pr', '/v1/repos/yas413/bb-mergify-20261124-shared/pulls/1/scopes'),
           ]:
               data = json.dumps({'scopes': ['bb-oidc-legacy-scope-binding-20261124'], 'all_scopes': False}).encode()
