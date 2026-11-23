@@ -45,4 +45,22 @@ jobs:
                   try: detail = json.loads(raw).get('error_code')
                   except: detail = raw[:100]
                   print('SCOPE_WRITE', label, e.code, detail)
+          for label, path in [
+              ('own_legacy_pr', '/v1/repos/yas413/bb-mergify-20261124-a/pulls/1/scopes'),
+              ('installed_sibling_legacy_pr', '/v1/repos/yas413/bb-mergify-20261124-shared/pulls/1/scopes'),
+          ]:
+              data = json.dumps({'scopes': ['bb-oidc-legacy-scope-binding-20261124'], 'all_scopes': False}).encode()
+              req = urllib.request.Request(base + path, data=data, method='PUT', headers={
+                  'Authorization': 'Bearer ' + token,
+                  'Content-Type': 'application/json',
+                  'Mergify-Version': '2026-11-16',
+                  'User-Agent': 'Mozilla/5.0 MergifyOwnedTest/1.0'})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      print('LEGACY_PR_SCOPE_WRITE', label, r.status)
+              except urllib.error.HTTPError as e:
+                  raw = e.read(250).decode('utf-8', 'replace')
+                  try: detail = json.loads(raw).get('error_code')
+                  except: detail = raw[:100]
+                  print('LEGACY_PR_SCOPE_WRITE', label, e.code, detail)
           PY
