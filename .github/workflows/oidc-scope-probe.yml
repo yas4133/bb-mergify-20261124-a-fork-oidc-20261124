@@ -1,0 +1,48 @@
+name: Owned Mergify OIDC scope binding probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI token repository binding on owned commits
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.parse, urllib.request, urllib.error
+          base = 'https://api.mergify.com'
+          u = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
+          u += ('&' if '?' in u else '?') + urllib.parse.urlencode({'audience': base})
+          req = urllib.request.Request(u, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+          with urllib.request.urlopen(req, timeout=15) as r:
+              github_id_token = json.load(r)['value']
+          body = json.dumps({'id_token': github_id_token}).encode()
+          req = urllib.request.Request(base + '/v1/ci/oidc/exchange', data=body,
+              headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 MergifyOwnedTest/1.0'}, method='POST')
+          try:
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  response = json.load(r)
+                  print('EXCHANGE', r.status)
+          except urllib.error.HTTPError as e:
+              print('EXCHANGE', e.code, e.read(200).decode('utf-8', 'replace'))
+              raise SystemExit(0)
+          token = response['token']
+          own = '/v1/repos/' + os.environ['GITHUB_REPOSITORY'] + '/commits/' + os.environ['GITHUB_SHA'] + '/scopes'
+          sibling = '/v1/repos/yas413/bb-mergify-20261124-shared/commits/65e4e4d6f2d15a72d89475ec83dff5e0e026dde5/scopes'
+          for label, path in [('own', own), ('installed_sibling', sibling)]:
+              data = json.dumps({'scopes': ['bb-oidc-scope-binding-20261124'], 'all_scopes': False}).encode()
+              req = urllib.request.Request(base + path, data=data, method='PUT', headers={
+                  'Authorization': 'Bearer ' + token,
+                  'Content-Type': 'application/json',
+                  'User-Agent': 'Mozilla/5.0 MergifyOwnedTest/1.0'})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      print('SCOPE_WRITE', label, r.status)
+              except urllib.error.HTTPError as e:
+                  raw = e.read(250).decode('utf-8', 'replace')
+                  try: detail = json.loads(raw).get('error_code')
+                  except: detail = raw[:100]
+                  print('SCOPE_WRITE', label, e.code, detail)
+          PY
